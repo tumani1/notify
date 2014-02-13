@@ -44,7 +44,6 @@ class DBCredentialsChecker(object):
 
     def __init__(self, runQuery):
         self.runQuery = runQuery
-        self.sql = "SELECT username, password FROM user WHERE username = %s"
         self.credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword,)
 
     def requestAvatarId(self, credentials):
@@ -55,7 +54,8 @@ class DBCredentialsChecker(object):
             raise error.UnhandledCredentials()
 
         # Query
-        dbDeferred = self.runQuery(self.sql, (credentials.username,))
+        sql = "SELECT username, password FROM user WHERE username = %s"
+        dbDeferred = self.runQuery(sql, (credentials.username,))
 
         # Defered result
         d = defer.Deferred()
@@ -177,11 +177,11 @@ class ServerProtocol(LineReceiver):
             self.sendLine(json.dumps({"error": e.__str__()}))
 
     def send_broadcast_message(self, name):
-        if name in self.users:
-            msg = [name, self.users[name]["host"], self.users[name]["state"]]
+        if name in self.users and len(self.users[name]['users']):
+            msg = json.dumps([name, self.users[name]["host"], self.users[name]["state"]])
             for item in self.users[name]['users']:
                 if item in self.users and self.users[item]['self'] != self:
-                    self.users[item]['self'].sendLine(json.dumps(msg))
+                    self.users[item]['self'].sendLine(msg)
 
 
 #############################################################################

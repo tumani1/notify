@@ -1,6 +1,9 @@
 # coding: utf-8
 
-import json
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 from twisted.enterprise import adbapi
 from twisted.python import log
@@ -16,6 +19,8 @@ from twisted.protocols.basic import LineReceiver
 from zope.interface import implements, Interface
 
 from settings import *
+from models import *
+from queries import *
 
 
 #############################################################################
@@ -30,8 +35,10 @@ class IPortocolAvatar(Interface):
 class ServerAvatar(object):
     implements(IPortocolAvatar)
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, pk, username, password):
+        self.pk = pk
+        self.username = username
+        self.password = password
 
     def logout(self):
         pass
@@ -43,7 +50,6 @@ class DBCredentialsChecker(object):
     implements(ICredentialsChecker)
 
     def __init__(self, runQuery):
-        self.runQuery = runQuery
         self.credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword,)
 
     def requestAvatarId(self, credentials):
@@ -53,31 +59,28 @@ class DBCredentialsChecker(object):
         else:
             raise error.UnhandledCredentials()
 
-        # Query
-        sql = "SELECT username, password FROM user WHERE username = %s"
-        dbDeferred = self.runQuery(sql, (credentials.username,))
-
         # Defered result
         d = defer.Deferred()
-        dbDeferred.addCallbacks(self._cbAuthenticate, self._ebAuthenticate,
+        getUser(credentials.username).addCallbacks(self._cbAuthenticate, self._ebAuthenticate,
                                 callbackArgs=(credentials, d), errbackArgs=(credentials, d))
 
         return d
 
     def _cbAuthenticate(self, result, credentials, deferred):
+        result = list(result)
         if not len(result):
             deferred.errback(error.UnauthorizedLogin("Username not found."))
         else:
-            username, password = result[0]
+            password = result[0].password
             if IUsernameHashedPassword.providedBy(credentials):
                 if credentials.checkPassword(password):
-                    deferred.callback(credentials.username)
+                    deferred.callback(result[0])
                 else:
                     deferred.errback(error.UnauthorizedLogin("Password mismatch."))
 
             elif IUsernamePassword.providedBy(credentials):
                 if password == credentials.password:
-                    deferred.callback(credentials.username)
+                    deferred.callback(result[0])
                 else:
                     deferred.errback(error.UnauthorizedLogin("Password mismatch."))
 
@@ -95,7 +98,7 @@ class ServerRealm(object):
 
     def requestAvatar(self, avatarId, mind, *interfaces):
         if IPortocolAvatar in interfaces:
-            avatar = ServerAvatar(avatarId)
+            avatar = ServerAvatar(avatarId.id, avatarId.username, avatarId.password)
             logout = avatar.logout
             return IPortocolAvatar, avatar, logout
 
@@ -117,10 +120,15 @@ class ServerProtocol(LineReceiver):
 
     def connectionLost(self, reason):
         if not self.avatar is None:
-            name = self.avatar.name
+            name = self.avatar.username
             if name in self.users:
-                self.users[name]["state"] = APP_DISCONECTED
-                self.send_broadcast_message(name)
+                def _cbOK(result):
+                    result = result.first()
+                    if not result is None:
+                        self.send_broadcast_message(result.username, obj=result)
+
+                update_or_create_status(self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None).\
+                    addCallback(_cbOK)
 
         self.avatar = None
         self.logout = None
@@ -133,25 +141,25 @@ class ServerProtocol(LineReceiver):
             self.get_states(line)
 
     def try_auth_user(self, username, password):
-        self.portal.login(UsernamePassword(username, password), None, IPortocolAvatar)\
-                    .addCallbacks(self._cbAuth, self._ebAuth)
+        self.portal.\
+            login(UsernamePassword(username, password), None, IPortocolAvatar).\
+            addCallbacks(self._cbAuth, self._ebAuth)
 
     def _cbAuth(self, (interface, avatar, logout)):
         self.avatar = avatar
         self.logout = logout
+        self.users[avatar.username] = self
 
-        self.users[avatar.name] = {
-            "self" : self,
-            "host" : self.transport.getPeer().host,
-            "state": APP_USER_LOGINED,
-            "users": [],
-        }
-
-        self.sendLine(json.dumps({"success": "Login sucessful, please proceed."}))
+        update_or_create_status(avatar.pk, self.transport.getPeer().host).\
+            addCallbacks(self._cbSuccessNotify, self._ebAuth)
 
     def _ebAuth(self, failure):
         self.sendLine(json.dumps({"error": failure.value.message}))
         self.transport.loseConnection()
+
+    # т.к. в sql есть Replace ф-ция. она делает Insert или Update
+    def _cbSuccessNotify(self, result):
+        self.sendLine(json.dumps({"success": "Login sucessful, please proceed."}))
 
     def get_states(self, data):
         try:
@@ -164,24 +172,31 @@ class ServerProtocol(LineReceiver):
             # Get uniq users
             list_users = list(set(list_users))
 
-            name = self.avatar.name
-            if self.users[name]["state"] == APP_USER_LOGINED:
-                self.users[name]["users"] = list_users
-                self.users[name]["state"] = APP_CONNECTED
-                self.send_broadcast_message(name)
-
-            result = [[item, self.users[name]["host"], self.users[name]["state"]] for item in list_users if item in self.users]
-            self.sendLine(json.dumps(result))
+            getStatus(**{'user_id': self.avatar.pk}).addCallback(self._cbSendStatusNotify, list_users)
 
         except Exception as e:
             self.sendLine(json.dumps({"error": e.__str__()}))
 
-    def send_broadcast_message(self, name):
-        if name in self.users and len(self.users[name]['users']):
-            msg = json.dumps([name, self.users[name]["host"], self.users[name]["state"]])
-            for item in self.users[name]['users']:
-                if item in self.users and self.users[item]['self'] != self:
-                    self.users[item]['self'].sendLine(msg)
+    def _cbSendStatusNotify(self, result, list_users):
+        instance = result.first()
+        if not instance is None:
+            if instance.status == APP_USER_LOGINED:
+                instance.status = APP_CONNECTED
+                instance.users = list_users
+                self.send_broadcast_message(self.avatar.username, instance)
+
+                update_or_create_status(self.avatar.pk, self.transport.getPeer().host,
+                                        instance.status, instance.users)
+
+            msg = [[item, instance.host, instance.status] for item in list_users if item in self.users]
+            self.sendLine(json.dumps(msg))
+
+    def send_broadcast_message(self, name, obj=None):
+        if name in self.users and not obj is None:
+            msg = json.dumps([name, obj.host, obj.status])
+            for item in obj.users:
+                if item in self.users and self.users[item] != self:
+                    self.users[item].sendLine(msg)
 
 
 #############################################################################

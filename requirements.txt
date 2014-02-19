@@ -3,3 +3,4 @@
 * SQLAlchemy 0.9
 * yaml
 * MySQL
+* txamqp

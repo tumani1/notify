@@ -49,7 +49,7 @@ class ServerAvatar(object):
 class DBCredentialsChecker(object):
     implements(ICredentialsChecker)
 
-    def __init__(self, runQuery):
+    def __init__(self):
         self.credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword,)
 
     def requestAvatarId(self, credentials):
@@ -217,11 +217,8 @@ def main():
     file = open(os.path.join(LOG_PATH, 'server.log'), 'w')
     log.startLogging(file)
 
-    # Set connection to the DB
-    pool = adbapi.ConnectionPool(**DB_CONFIG['mysql'])
-
     # Class for authentificate
-    checker = DBCredentialsChecker(pool.runQuery)
+    checker = DBCredentialsChecker()
 
     # Set Portal and Realm
     realm = ServerRealm()

@@ -14,6 +14,11 @@ DB_CONFIG = {}
 with open(os.path.join(BASE_PATH, 'configs/database.yaml'), 'r') as file:
     DB_CONFIG = yaml.load(file, Loader=yaml.loader.BaseLoader)
 
+# Parse AMQP Config
+AMQP_CONFIG = {}
+with open(os.path.join(BASE_PATH, 'configs/amqp.yaml'), 'r') as file:
+    AMQP_CONFIG = yaml.load(file, Loader=yaml.loader.BaseLoader)
+
 #Status
 APP_USER_LOGINED = 1
 APP_CONNECTED    = 2

@@ -1,3 +1,22 @@
-2014-02-18 18:35:57+0400 [-] Log opened.
-2014-02-18 18:35:57+0400 [-] ServerFactory starting on 8000
-2014-02-18 18:35:57+0400 [-] Starting factory <__main__.ServerFactory instance at 0x9f7d50c>
+2014-02-19 14:21:18+0400 [-] Log opened.
+2014-02-19 14:21:18+0400 [-] ServerFactory starting on 8000
+2014-02-19 14:21:18+0400 [-] Starting factory <__main__.ServerFactory instance at 0xac8a76c>
+2014-02-19 14:21:25+0400 [TwistedProtocolConnection,client] Sent 100 msgs, 100 Ok.
+2014-02-19 14:21:25+0400 [TwistedProtocolConnection,client] [(True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None), (True, None)]
+2014-02-19 14:21:25+0400 [-] Unhandled error in Deferred:
+2014-02-19 14:21:25+0400 [-] Unhandled Error
+	Traceback (most recent call last):
+	  File "/usr/local/lib/python2.7/dist-packages/Twisted-13.2.0-py2.7-linux-i686.egg/twisted/internet/base.py", line 1201, in mainLoop
+	    self.runUntilCurrent()
+	  File "/usr/local/lib/python2.7/dist-packages/Twisted-13.2.0-py2.7-linux-i686.egg/twisted/internet/base.py", line 797, in runUntilCurrent
+	    f(*a, **kw)
+	  File "/usr/local/lib/python2.7/dist-packages/Twisted-13.2.0-py2.7-linux-i686.egg/twisted/internet/defer.py", line 382, in callback
+	    self._startRunCallbacks(result)
+	  File "/usr/local/lib/python2.7/dist-packages/Twisted-13.2.0-py2.7-linux-i686.egg/twisted/internet/defer.py", line 490, in _startRunCallbacks
+	    self._runCallbacks()
+	--- <exception caught here> ---
+	  File "/usr/local/lib/python2.7/dist-packages/Twisted-13.2.0-py2.7-linux-i686.egg/twisted/internet/defer.py", line 577, in _runCallbacks
+	    current.result = callback(current.result, *args, **kw)
+	exceptions.TypeError: message() takes exactly 2 arguments (3 given)
+	
+2014-02-19 14:21:25+0400 [TwistedProtocolConnection,client] No handlers could be found for logger "pika.channel"

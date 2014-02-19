@@ -5,8 +5,7 @@ try:
 except ImportError:
     import simplejson as json
 
-from twisted.enterprise import adbapi
-from twisted.python import log
+from twisted.python import log as twisted_log
 
 from twisted.cred import error
 from twisted.cred.portal import IRealm, Portal
@@ -19,8 +18,12 @@ from twisted.protocols.basic import LineReceiver
 from zope.interface import implements, Interface
 
 from settings import *
-from models import *
 from queries import *
+
+from pika.adapters.twisted_connection import TwistedProtocolConnection
+from pika.connection import ConnectionParameters
+from pika import BasicProperties
+
 
 
 #############################################################################
@@ -122,16 +125,16 @@ class ServerProtocol(LineReceiver):
         if not self.avatar is None:
             name = self.avatar.username
             if name in self.users:
-                def _cbOK(result):
-                    result = result.first()
-                    if not result is None:
-                        self.send_broadcast_message(result.username, obj=result)
-
                 update_or_create_status(self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None).\
-                    addCallback(_cbOK)
+                    addCallback(self._cbSendBroadcast)
 
         self.avatar = None
         self.logout = None
+
+    def _cbSendBroadcast(self, result):
+        result = result.first()
+        if not result is None:
+            self.send_broadcast_message(result.username, result)
 
     def lineReceived(self, line):
         if not self.avatar:
@@ -150,23 +153,23 @@ class ServerProtocol(LineReceiver):
         self.logout = logout
         self.users[avatar.username] = self
 
+        success = lambda result: self.message(**{"success": "Logged successfully."})
         update_or_create_status(avatar.pk, self.transport.getPeer().host).\
-            addCallbacks(self._cbSuccessNotify, self._ebAuth)
+            addCallbacks(success, self._ebAuth)
 
     def _ebAuth(self, failure):
-        self.sendLine(json.dumps({"error": failure.value.message}))
+        self.message(**{"error": failure.value.message})
         self.transport.loseConnection()
 
-    # т.к. в sql есть Replace ф-ция. она делает Insert или Update
-    def _cbSuccessNotify(self, result):
-        self.sendLine(json.dumps({"success": "Login sucessful, please proceed."}))
+    def message(self, result=None, **kwargs):
+        self.sendLine(json.dumps(kwargs))
 
     def get_states(self, data):
         try:
             list_users = json.loads(data)
 
             if not isinstance(list_users, list):
-                self.sendLine(json.dumps({"error": "We received not list."}))
+                self.message(**{"error": "We received not list."})
                 return
 
             # Get uniq users
@@ -175,7 +178,7 @@ class ServerProtocol(LineReceiver):
             getStatus(**{'user_id': self.avatar.pk}).addCallback(self._cbSendStatusNotify, list_users)
 
         except Exception as e:
-            self.sendLine(json.dumps({"error": e.__str__()}))
+            self.message(**{"error": e.__str__()})
 
     def _cbSendStatusNotify(self, result, list_users):
         instance = result.first()
@@ -189,7 +192,7 @@ class ServerProtocol(LineReceiver):
                                         instance.status, instance.users)
 
             msg = [[item, instance.host, instance.status] for item in list_users if item in self.users]
-            self.sendLine(json.dumps(msg))
+            self.sendLine(msg)
 
     def send_broadcast_message(self, name, obj=None):
         if name in self.users and not obj is None:
@@ -215,7 +218,7 @@ class ServerFactory(protocol.Factory):
 def main():
     # Logging
     file = open(os.path.join(LOG_PATH, 'server.log'), 'w')
-    log.startLogging(file)
+    twisted_log.startLogging(file)
 
     # Class for authentificate
     checker = DBCredentialsChecker()

@@ -135,19 +135,12 @@ class ServerProtocol(LineReceiver):
 
     def lineReceived(self, line):
         if not self.avatar:
-            self.try_auth_user(line)
+            self.tryAuthUser(line)
         else:
-            self.get_states(line)
-
-    def message(self, result=None, **kwargs):
-        self.sendLine(json.dumps(kwargs))
-
-    def manual_close_connection(self, failure, **kwargs):
-        self.message(**{"error": failure.message})
-        self.transport.loseConnection()
+            self.getStates(line)
 
     @defer.inlineCallbacks
-    def try_auth_user(self, line):
+    def tryAuthUser(self, line):
         # Default success return value
         return_value = True
 
@@ -169,12 +162,12 @@ class ServerProtocol(LineReceiver):
             self.message(**{"success": "Logged successfully."})
         except Exception as err:
             return_value = False
-            self.manual_close_connection(err)
+            self.manualCloseConnection(err)
 
         defer.returnValue(return_value)
 
     @defer.inlineCallbacks
-    def get_states(self, data):
+    def getStates(self, data):
         try:
             list_users = json.loads(data)
 
@@ -185,12 +178,15 @@ class ServerProtocol(LineReceiver):
             # Get uniq users
             list_users = list(set(list_users))
 
-            yield getStatus(**{'user_id': self.avatar.pk}).addCallback(self._cbSendStatusNotify, list_users)
+            # Get status about users and send notification, if success
+            result = yield getStatus(**{'user_id': self.avatar.pk})
+            result = yield self.sendStatusNotification(result, list_users)
 
         except Exception as e:
             self.message(**{"error": e.__str__()})
 
-    def _cbSendStatusNotify(self, result, list_users):
+    @defer.inlineCallbacks
+    def sendStatusNotification(self, result, list_users):
         instance = result.first()
         if not instance is None:
             if instance.status == APP_USER_LOGINED:
@@ -198,7 +194,7 @@ class ServerProtocol(LineReceiver):
                 instance.users = list_users
                 self.send_broadcast_message(self.avatar.username, instance)
 
-                update_or_create_status(self.avatar.pk, self.transport.getPeer().host,
+                yield update_or_create_status(self.avatar.pk, self.transport.getPeer().host,
                                         instance.status, instance.users)
 
             msg = [[item, instance.host, instance.status] for item in list_users if item in self.users]
@@ -210,6 +206,13 @@ class ServerProtocol(LineReceiver):
             for item in obj.users:
                 if item in self.users and self.users[item] != self:
                     self.users[item].sendLine(msg)
+
+    def message(self, result=None, **kwargs):
+        self.sendLine(json.dumps(kwargs))
+
+    def manualCloseConnection(self, failure, **kwargs):
+        self.message(**{"error": failure.message})
+        self.transport.loseConnection()
 
 
 #############################################################################

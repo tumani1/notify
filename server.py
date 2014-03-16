@@ -55,6 +55,7 @@ class DBCredentialsChecker(object):
     def __init__(self):
         self.credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword,)
 
+    @defer.inlineCallbacks
     def requestAvatarId(self, credentials):
         for interface in self.credentialInterfaces:
             if interface.providedBy(credentials):
@@ -62,36 +63,27 @@ class DBCredentialsChecker(object):
         else:
             raise error.UnhandledCredentials()
 
-        # Defered result
-        d = defer.Deferred()
-        getUser(credentials.username).addCallbacks(self._cbAuthenticate, self._ebAuthenticate,
-                                callbackArgs=(credentials, d), errbackArgs=(credentials, d))
+        result = yield getUser(credentials.username)
 
-        return d
-
-    def _cbAuthenticate(self, result, credentials, deferred):
         result = list(result)
         if not len(result):
-            deferred.errback(error.UnauthorizedLogin("Username not found."))
+            raise error.UnauthorizedLogin("Username not found.")
         else:
             password = result[0].password
             if IUsernameHashedPassword.providedBy(credentials):
                 if credentials.checkPassword(password):
-                    deferred.callback(result[0])
+                    defer.returnValue(result[0])
                 else:
-                    deferred.errback(error.UnauthorizedLogin("Password mismatch."))
+                    raise error.UnauthorizedLogin("Password mismatch.")
 
             elif IUsernamePassword.providedBy(credentials):
                 if password == credentials.password:
-                    deferred.callback(result[0])
+                    defer.returnValue(result[0])
                 else:
-                    deferred.errback(error.UnauthorizedLogin("Password mismatch."))
+                    raise error.UnauthorizedLogin("Password mismatch.")
 
             else:
-                deferred.errback(error.UnhandledCredentials())
-
-    def _ebAuthenticate(self, message, credentials, deferred):
-        deferred.errback(error.LoginFailed(message))
+                raise error.UnhandledCredentials()
 
 
 #############################################################################

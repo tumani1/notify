@@ -43,5 +43,6 @@ def _create_database():
 
     Base.metadata.create_all(db_connect())
 
+
 if __name__ == '__main__':
     _create_database()

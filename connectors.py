@@ -9,7 +9,7 @@ from exceptions import *
 from utils.decorators import toThread
 
 # Create connection to the database
-def db_connect(type='mysql2', **kwargs):
+def db_connect(type='mysql', **kwargs):
     db_settings = settings.DB_CONFIG
     if not type in db_settings:
         raise NoExistTypeDatabase

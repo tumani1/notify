@@ -1,11 +1,4 @@
 mysql:
-  dbapiName: MySQLdb
-  db: test_twisted
-  user: root
-  passwd:
-  host: 127.0.0.1
-
-mysql2:
   drivername: mysql
   username: root
   password:

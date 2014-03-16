@@ -63,7 +63,11 @@ class DBCredentialsChecker(object):
         else:
             raise error.UnhandledCredentials()
 
-        result = yield getUser(credentials.username)
+        try:
+            result = yield getUser(credentials.username)
+        except:
+            msg = "Database Error"
+            raise error.UnhandledCredentials(msg)
 
         result = list(result)
         if not len(result):
@@ -95,6 +99,7 @@ class ServerRealm(object):
         if IPortocolAvatar in interfaces:
             avatar = ServerAvatar(avatarId.id, avatarId.username, avatarId.password)
             logout = avatar.logout
+
             return IPortocolAvatar, avatar, logout
 
         raise NotImplementedError("no interface")
@@ -130,44 +135,57 @@ class ServerProtocol(LineReceiver):
 
     def lineReceived(self, line):
         if not self.avatar:
-            username, password = line.strip().split("@", 1)
-            self.try_auth_user(username, password)
+            self.try_auth_user(line)
         else:
             self.get_states(line)
-
-    def try_auth_user(self, username, password):
-        self.portal.\
-            login(UsernamePassword(username, password), None, IPortocolAvatar).\
-            addCallbacks(self._cbAuth, self._ebAuth)
-
-    def _cbAuth(self, (interface, avatar, logout)):
-        self.avatar = avatar
-        self.logout = logout
-        self.users[avatar.username] = self
-
-        success = lambda result: self.message(**{"success": "Logged successfully."})
-        update_or_create_status(avatar.pk, self.transport.getPeer().host).\
-            addCallbacks(success, self._ebAuth)
-
-    def _ebAuth(self, failure):
-        self.message(**{"error": failure.value.message})
-        self.transport.loseConnection()
 
     def message(self, result=None, **kwargs):
         self.sendLine(json.dumps(kwargs))
 
+    def manual_close_connection(self, failure, **kwargs):
+        self.message(**{"error": failure.message})
+        self.transport.loseConnection()
+
+    @defer.inlineCallbacks
+    def try_auth_user(self, line):
+        # Default success return value
+        return_value = True
+
+        try:
+            # Try logined on the portal
+            username, password = line.strip().split("@", 1)
+            interface, avatar, logout = yield self.portal.\
+                login(UsernamePassword(username, password), None, IPortocolAvatar)
+
+            # Update DB information
+            result = yield update_or_create_status(avatar.pk, self.transport.getPeer().host)
+
+            # Update Info
+            self.avatar = avatar
+            self.logout = logout
+            self.users[avatar.username] = self
+
+            # Send message
+            self.message(**{"success": "Logged successfully."})
+        except Exception as err:
+            return_value = False
+            self.manual_close_connection(err)
+
+        defer.returnValue(return_value)
+
+    @defer.inlineCallbacks
     def get_states(self, data):
         try:
             list_users = json.loads(data)
 
             if not isinstance(list_users, list):
                 self.message(**{"error": "We received not list."})
-                return
+                defer.returnValue(False)
 
             # Get uniq users
             list_users = list(set(list_users))
 
-            getStatus(**{'user_id': self.avatar.pk}).addCallback(self._cbSendStatusNotify, list_users)
+            yield getStatus(**{'user_id': self.avatar.pk}).addCallback(self._cbSendStatusNotify, list_users)
 
         except Exception as e:
             self.message(**{"error": e.__str__()})

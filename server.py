@@ -118,20 +118,24 @@ class ServerProtocol(LineReceiver):
     def connectionMade(self):
         self.sendLine("User@Passwd:")
 
+    @defer.inlineCallbacks
     def connectionLost(self, reason):
         if not self.avatar is None:
             name = self.avatar.username
             if name in self.users:
-                update_or_create_status(self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None).\
-                    addCallback(self._cbSendBroadcast)
+                args = (self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None)
+                try:
+                    result = yield update_or_create_status(*args)
+
+                    result = result.first()
+                    if not result is None:
+                        self.sendBroadcastMessage(result.username, result)
+
+                except Exception as err:
+                    self.message(**{"error": err.__str__()})
 
         self.avatar = None
         self.logout = None
-
-    def _cbSendBroadcast(self, result):
-        result = result.first()
-        if not result is None:
-            self.send_broadcast_message(result.username, result)
 
     def lineReceived(self, line):
         if not self.avatar:
@@ -192,15 +196,18 @@ class ServerProtocol(LineReceiver):
             if instance.status == APP_USER_LOGINED:
                 instance.status = APP_CONNECTED
                 instance.users = list_users
-                self.send_broadcast_message(self.avatar.username, instance)
+                self.sendBroadcastMessage(self.avatar.username, instance)
 
                 yield update_or_create_status(self.avatar.pk, self.transport.getPeer().host,
                                         instance.status, instance.users)
 
             msg = [[item, instance.host, instance.status] for item in list_users if item in self.users]
-            self.sendLine(msg)
+            #TODO: переделать на ф-цию message
+            self.sendLine(json.dumps(msg))
 
-    def send_broadcast_message(self, name, obj=None):
+        defer.returnValue(True)
+
+    def sendBroadcastMessage(self, name, obj=None):
         if name in self.users and not obj is None:
             msg = json.dumps([name, obj.host, obj.status])
             for item in obj.users:

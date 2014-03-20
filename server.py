@@ -127,15 +127,17 @@ class ServerProtocol(LineReceiver):
                 try:
                     result = yield update_or_create_status(*args)
 
-                    result = result.first()
+                   # result = result.first()
                     if not result is None:
-                        self.sendBroadcastMessage(result.username, result)
+                        self.sendBroadcastMessage(self.avatar.username, result)
 
                 except Exception as err:
                     self.message(**{"error": err.__str__()})
+                    defer.returnValue(False)
 
         self.avatar = None
         self.logout = None
+        defer.returnValue(True)
 
     def lineReceived(self, line):
         if not self.avatar:
@@ -172,6 +174,7 @@ class ServerProtocol(LineReceiver):
 
     @defer.inlineCallbacks
     def getStates(self, data):
+        return_value = False
         try:
             list_users = json.loads(data)
 
@@ -185,9 +188,11 @@ class ServerProtocol(LineReceiver):
             # Get status about users and send notification, if success
             result = yield getStatus(**{'user_id': self.avatar.pk})
             result = yield self.sendStatusNotification(result, list_users)
-
+            return_value = True
         except Exception as e:
             self.message(**{"error": e.__str__()})
+        finally:
+            defer.returnValue(return_value)
 
     @defer.inlineCallbacks
     def sendStatusNotification(self, result, list_users):

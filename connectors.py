@@ -21,16 +21,8 @@ def db_connect(type='mysql', **kwargs):
 
 
 #############################################################################################################
-# Class singleton decorator for call in the database
+# Class decorator for call in the database
 class DBDefer(object):
-    _instance = None
-
-    def __new__(self, *args, **kwargs):
-        if not self._instance:
-            self._instance = super(DBDefer, self).__new__(self, *args, **kwargs)
-
-        return self._instance
-
     def __init__(self, engine=None, poolclass=None):
         poolclass = poolclass or pool.SingletonThreadPool
 

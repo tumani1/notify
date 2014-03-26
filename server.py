@@ -1,9 +1,10 @@
 # coding: utf-8
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
+import json
+
+from pika.adapters.twisted_connection import TwistedProtocolConnection
+from pika.connection import ConnectionParameters
+from pika import BasicProperties
 
 from twisted.python import log as twisted_log
 
@@ -20,9 +21,6 @@ from zope.interface import implements, Interface
 from settings import *
 from queries import *
 
-from pika.adapters.twisted_connection import TwistedProtocolConnection
-from pika.connection import ConnectionParameters
-from pika import BasicProperties
 
 
 

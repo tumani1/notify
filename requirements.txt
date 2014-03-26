@@ -1,5 +1,4 @@
-* python 2.7
-* Twisted 13.2.0
-* SQLAlchemy 0.9
-* yaml
-* pika
+Twisted==13.2
+SQLAlchemy==0.9
+pyyaml
+pika

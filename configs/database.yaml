@@ -1,7 +1,7 @@
-mysql:
-  drivername: mysql
-  username: root
-  password:
+postgresql:
+  drivername: postgresql+psycopg2
+  username: pgadmin
+  password: qwerty
   host: 127.0.0.1
-  port: 3306
+  port: 5432
   database: test_twisted

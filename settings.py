@@ -9,6 +9,9 @@ BASE_PATH = os.path.dirname(__file__)
 # Base path for project
 LOG_PATH = os.path.join(BASE_PATH, 'logs')
 
+# Current DB Driver
+DB_DRIVER = "postgresql"
+
 # Parse DB Config
 DB_CONFIG = {}
 with open(os.path.join(BASE_PATH, 'configs/database.yaml'), 'r') as file:

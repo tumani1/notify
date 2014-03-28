@@ -1,5 +1,6 @@
 Twisted==13.2
-SQLAlchemy==0.9
+SQLAlchemy
+alchimia
 psycopg2
 pyyaml
 pika

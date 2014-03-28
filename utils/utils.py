@@ -1,12 +1,14 @@
 # coding: utf-8
 
-from ..models import *
-from ..connectors import db_connect
+from models import Base
+from connectors import db_connect
+
 
 # Create table in the database
-def create_database():
-    Base.metadata.create_all(db_connect())
+def create_all_tables(**kwargs):
+    Base.metadata.create_all(bind=db_connect(), **kwargs)
 
 
-if __name__ == '__main__':
-    create_database()
+# Drop table in the database
+def drop_all_tables(**kwargs):
+    Base.metadata.drop_all(bind=db_connect(), **kwargs)

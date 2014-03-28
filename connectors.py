@@ -8,6 +8,9 @@ import settings
 from exceptions import *
 from utils.decorators import toThread
 
+__all__ = ['DBDefer', 'db_connect']
+
+
 # Create connection to the database
 def db_connect(type=settings.DB_DRIVER, **kwargs):
     db_settings = settings.DB_CONFIG
@@ -38,9 +41,9 @@ class DBDefer(object):
             session = sessionmaker(bind=self.engine)()
             try:
                 return func(session=session, *args, **kwargs)
-            except:
+            except Exception as e:
                 session.rollback()
-                raise
+                raise e
             finally:
                 session.close()
 

@@ -1,5 +1,7 @@
 # coding: utf-8
 
+import settings
+
 from models import *
 from connectors import *
 

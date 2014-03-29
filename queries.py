@@ -18,14 +18,14 @@ def update_or_create_status(user_id, host, status=settings.APP_USER_LOGINED, use
             instance.users = users
 
         session.commit()
-        session.flush()
+        # session.flush()
     else:
         instance = StatesModel(user_id=user_id, host=host, status=status)
         session.add(instance)
         session.commit()
 
         instance = session.query(StatesModel).filter_by(id=instance.id).first()
-        session.flush()
+        # session.flush()
 
     return instance
 

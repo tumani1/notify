@@ -129,6 +129,7 @@ class ServerProtocol(LineReceiver):
                         self.sendBroadcastMessage(self.avatar.username, result)
 
                 except Exception as err:
+                    print "error"
                     self.message(**{"error": err.__str__()})
                     defer.returnValue(False)
 

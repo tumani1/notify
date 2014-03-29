@@ -38,7 +38,7 @@ class DBDefer(object):
     def __call__(self, func):
         @toThread
         def wrapper(*args, **kwargs):
-            session = sessionmaker(bind=self.engine)()
+            session = sessionmaker(bind=self.engine, expire_on_commit=False)()
             try:
                 return func(session=session, *args, **kwargs)
             except Exception as e:

@@ -106,12 +106,11 @@ class ServerRealm(object):
 #############################################################################
 # Protocol
 class ServerProtocol(LineReceiver):
-    portal = None
     avatar = None
     logout = None
 
-    def __init__(self, users):
-        self.users = users
+    def __init__(self, factory):
+        self.factory = factory
 
     def connectionMade(self):
         self.sendLine("User@Passwd:")
@@ -120,7 +119,7 @@ class ServerProtocol(LineReceiver):
     def connectionLost(self, reason):
         if not self.avatar is None:
             name = self.avatar.username
-            if name in self.users:
+            if name in self.factory.users:
                 args = (self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None)
                 try:
                     result = yield update_or_create_status(*args)
@@ -151,7 +150,7 @@ class ServerProtocol(LineReceiver):
         try:
             # Try logined on the portal
             username, password = line.strip().split("@", 1)
-            interface, avatar, logout = yield self.portal.\
+            interface, avatar, logout = yield self.factory.portal.\
                 login(UsernamePassword(username, password), None, IPortocolAvatar)
 
             # Update DB information
@@ -160,7 +159,7 @@ class ServerProtocol(LineReceiver):
             # Update Info
             self.avatar = avatar
             self.logout = logout
-            self.users[avatar.username] = self
+            self.factory.users[avatar.username] = self
 
             # Send message
             self.message(**{"success": "Logged successfully."})
@@ -204,18 +203,18 @@ class ServerProtocol(LineReceiver):
                 yield update_or_create_status(self.avatar.pk, self.transport.getPeer().host,
                                         instance.status, instance.users)
 
-            msg = [[item, instance.host, instance.status] for item in list_users if item in self.users]
+            msg = [[item, instance.host, instance.status] for item in list_users if item in self.factory.users]
             #TODO: переделать на ф-цию message
             self.sendLine(json.dumps(msg))
 
         defer.returnValue(True)
 
     def sendBroadcastMessage(self, name, obj=None):
-        if name in self.users and not obj is None:
+        if name in self.factory.users and not obj is None:
             msg = json.dumps([name, obj.host, obj.status])
             for item in obj.users:
-                if item in self.users and self.users[item] != self:
-                    self.users[item].sendLine(msg)
+                if item in self.factory.users and self.factory.users[item] != self:
+                    self.factory.users[item].sendLine(msg)
 
     def message(self, result=None, **kwargs):
         self.sendLine(json.dumps(kwargs))
@@ -233,8 +232,7 @@ class ServerFactory(protocol.Factory):
         self.portal = portal
 
     def buildProtocol(self, addr):
-        proto = ServerProtocol(self.users)
-        proto.portal = self.portal
+        proto = ServerProtocol(self)
         return proto
 
 

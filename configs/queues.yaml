@@ -1,0 +1,5 @@
+log:
+  exchange: "test_twisted"
+  queue: "log_twisted"
+  routing_key: "log_key"
+  consumer_tag: "log_tag"

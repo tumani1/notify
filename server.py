@@ -2,10 +2,6 @@
 
 import json
 
-from pika.adapters.twisted_connection import TwistedProtocolConnection
-from pika.connection import ConnectionParameters
-from pika import BasicProperties
-
 from twisted.python import log as twisted_log
 
 from twisted.cred import error
@@ -124,12 +120,10 @@ class ServerProtocol(LineReceiver):
                 try:
                     result = yield update_or_create_status(*args)
 
-                   # result = result.first()
                     if not result is None:
                         self.sendBroadcastMessage(self.avatar.username, result)
 
                 except Exception as err:
-                    print "error"
                     self.message(**{"error": err.__str__()})
                     defer.returnValue(False)
 

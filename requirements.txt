@@ -2,5 +2,5 @@ Twisted==13.2
 SQLAlchemy
 alchimia
 psycopg2
+txamqp
 pyyaml
-pika

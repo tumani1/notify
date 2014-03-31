@@ -1,8 +1,8 @@
 # coding: utf-8
 
 from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.internet import reactor
 from twisted.internet.protocol import ClientCreator
+from twisted.internet import reactor
 
 from txamqp.protocol import AMQClient
 from txamqp.client import TwistedDelegate
@@ -15,7 +15,8 @@ import common
 @inlineCallbacks
 def pushText(chan, body):
     msg = Content(body)
-    msg["delivery mode"] = common.PERSISTENT
+    msg['delivery-mode'] = 2
+    msg['content-type'] = 'application/json'
     yield chan.basic_publish(exchange=common.EXCHANGE_NAME, content=msg, routing_key=common.ROUTING_KEY)
 
     returnValue(None)
@@ -47,8 +48,8 @@ def main():
     chan = yield common.getChannel(conn)
 
     # create queue, exchange, binding
-    yield chan.queue_declare(queue=common.QUEUE_NAME, durable=True, exclusive=False, auto_delete=False)
     yield chan.exchange_declare(exchange=common.EXCHANGE_NAME, type="direct", durable=True, auto_delete=False)
+    yield chan.queue_declare(queue=common.QUEUE_NAME, durable=True, exclusive=False, auto_delete=False)
     yield chan.queue_bind(queue=common.QUEUE_NAME, exchange=common.EXCHANGE_NAME, routing_key=common.ROUTING_KEY)
 
     # send the text to the RabbitMQ server

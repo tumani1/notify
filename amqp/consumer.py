@@ -1,8 +1,8 @@
 # coding: utf-8
 
 from twisted.internet.defer import inlineCallbacks, returnValue
-from twisted.internet import reactor
 from twisted.internet.protocol import ClientCreator
+from twisted.internet import reactor
 
 from txamqp.protocol import AMQClient
 from txamqp.client import TwistedDelegate
@@ -14,7 +14,7 @@ import common
 @inlineCallbacks
 def getQueue(conn, chan):
     yield chan.exchange_declare(exchange=common.EXCHANGE_NAME, type="direct", durable=True, auto_delete=False)
-    yield chan.queue_declare(queue=common.QUEUE_NAME, durable=True, exclusive=False, auto_delete=True)
+    yield chan.queue_declare(queue=common.QUEUE_NAME, durable=True, exclusive=False, auto_delete=False)
     yield chan.queue_bind(queue=common.QUEUE_NAME, exchange=common.EXCHANGE_NAME, routing_key=common.ROUTING_KEY)
 
     yield chan.basic_consume(queue=common.QUEUE_NAME, consumer_tag=common.CONSUMER_TAG)

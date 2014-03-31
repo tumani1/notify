@@ -7,13 +7,11 @@ RABBIT_MQ_HOST = "127.0.0.1"
 RABBIT_MQ_PORT = 5672
 
 VHOST = "/"
-EXCHANGE_NAME = "test_message_exchange"
-QUEUE_NAME = "test_message_queue"
-ROUTING_KEY = "test_routing_key"
-CONSUMER_TAG = "test_consumer_tag"
+EXCHANGE_NAME = "test_twisted"
+QUEUE_NAME = "log_queue"
+ROUTING_KEY = "log_routing_key"
+CONSUMER_TAG = "log_consumer_tag"
 
-NON_PERSISTENT = 1
-PERSISTENT = 2
 
 credentials = {"LOGIN": "guest", "PASSWORD": "guest"}
 
@@ -22,6 +20,7 @@ credentials = {"LOGIN": "guest", "PASSWORD": "guest"}
 def getConnection(client):
     conn = yield client.connectTCP(RABBIT_MQ_HOST, RABBIT_MQ_PORT)
     yield conn.start(credentials)
+
     returnValue(conn)
 
 
@@ -29,4 +28,5 @@ def getConnection(client):
 def getChannel(conn):
     chan = yield conn.channel(3)
     yield chan.channel_open()
+
     returnValue(chan)

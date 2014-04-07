@@ -1,7 +1,7 @@
 postgresql:
   drivername: postgresql+psycopg2
   username: pgadmin
-  password: qwerty
+  password: 10031988
   host: 127.0.0.1
   port: 5432
   database: test_twisted

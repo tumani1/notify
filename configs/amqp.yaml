@@ -1,6 +1,7 @@
 rabbitmq:
   host: '127.0.0.1'
-  port: 5672
-  virtual_host: '/'
-  username: 'guest'
+  port: '5672'
+  vhost: '/'
+  user: 'guest'
   password: 'guest'
+  spec_file: 'resources/amqp0-9-1.stripped.xml'

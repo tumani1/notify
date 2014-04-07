@@ -16,14 +16,13 @@ from zope.interface import implements, Interface
 
 from settings import *
 from queries import *
-
-
+from amqp import AmqpFactory
 
 
 #############################################################################
 # Implement interface
 class IPortocolAvatar(Interface):
-    def logout():
+    def logout(self):
         """
         Prototype for custom logout function
         """
@@ -31,6 +30,7 @@ class IPortocolAvatar(Interface):
 
 class ServerAvatar(object):
     implements(IPortocolAvatar)
+    __slots__ = ['pk', 'username', 'password']
 
     def __init__(self, pk, username, password):
         self.pk = pk
@@ -101,12 +101,15 @@ class ServerRealm(object):
 
 #############################################################################
 # Protocol
-class ServerProtocol(LineReceiver):
+class NotifyProtocol(LineReceiver):
     avatar = None
     logout = None
 
     def __init__(self, factory):
         self.factory = factory
+        self.amqp = {
+            'log': ('test-twisted', 'log-queue', 'log_routing_key'),
+        }
 
     def connectionMade(self):
         self.sendLine("User@Passwd:")
@@ -156,8 +159,11 @@ class ServerProtocol(LineReceiver):
             self.logout = logout
             self.factory.users[avatar.username] = self
 
+            # send message
+            self.factory.amqp.send_message(*self.amqp['log'], msg='User ID:%s loggined' % self.avatar.pk)
+
             # Send message
-            self.message(**{"success": "Logged successfully."})
+            self.message(**{"success": "User logged successfully. Insert users list:"})
         except Exception as err:
             return_value = False
             self.manualCloseConnection(err)
@@ -167,6 +173,10 @@ class ServerProtocol(LineReceiver):
     @defer.inlineCallbacks
     def getStates(self, data):
         return_value = False
+
+        # send message
+        self.factory.amqp.send_message(*self.amqp['log'], msg='Get states User ID:%s' % self.avatar.pk)
+
         try:
             list_users = json.loads(data)
 
@@ -180,9 +190,12 @@ class ServerProtocol(LineReceiver):
             # Get status about users and send notification, if success
             result = yield getStatus(**{'user_id': self.avatar.pk})
             result = yield self.sendStatusNotification(result, list_users)
+
             return_value = True
+
         except Exception as e:
             self.message(**{"error": e.__str__()})
+
         finally:
             defer.returnValue(return_value)
 
@@ -215,19 +228,25 @@ class ServerProtocol(LineReceiver):
         self.sendLine(json.dumps(kwargs))
 
     def manualCloseConnection(self, failure, **kwargs):
+        # send message
+        msg = 'Error: %s' % failure.message
+        self.factory.amqp.send_message(*self.amqp['log'], msg=msg)
+
         self.message(**{"error": failure.message})
         self.transport.loseConnection()
 
 
 #############################################################################
 # Factory
-class ServerFactory(protocol.Factory):
-    def __init__(self, portal):
+class NotifyFactory(protocol.ServerFactory):
+    protocol = NotifyProtocol
+    __slots__ = ['users']
+
+    def __init__(self):
         self.users = {}
-        self.portal = portal
 
     def buildProtocol(self, addr):
-        proto = ServerProtocol(self)
+        proto = self.protocol(self)
         return proto
 
 
@@ -236,7 +255,7 @@ def main():
     file = open(os.path.join(LOG_PATH, 'server.log'), 'w')
     twisted_log.startLogging(file)
 
-    # Class for authentificate
+    # Class for authenticate
     checker = DBCredentialsChecker()
 
     # Set Portal and Realm
@@ -244,8 +263,16 @@ def main():
     server_portal = Portal(realm)
     server_portal.registerChecker(checker)
 
-    # Start reactor
-    reactor.listenTCP(8000, ServerFactory(server_portal))
+    # Init AMQP Factory
+    amqp_factory = AmqpFactory(**AMQP_CONFIG['rabbitmq'])
+
+    # Init Notify Factory
+    notify_factory = NotifyFactory()
+    notify_factory.portal = server_portal
+    notify_factory.amqp = amqp_factory
+
+    # Run
+    reactor.listenTCP(8000, notify_factory)
     reactor.run()
 
 

@@ -1,7 +1,7 @@
 # coding: utf-8
 
-from models import Base
-from connectors import db_connect
+from notify.models import Base
+from notify.connectors import db_connect
 
 
 # Create table in the database

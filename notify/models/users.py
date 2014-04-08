@@ -1,9 +1,9 @@
 # coding: utf-8
 
 from sqlalchemy import Column, Integer, String
-
 from db import Base
 
+__all__ = ['UsersModel']
 
 
 #############################################################################

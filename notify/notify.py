@@ -2,101 +2,12 @@
 
 import json
 
-from twisted.python import log as twisted_log
-
-from twisted.cred import error
-from twisted.cred.portal import IRealm, Portal
-from twisted.cred.checkers import ICredentialsChecker
-from twisted.cred.credentials import IUsernameHashedPassword, IUsernamePassword, UsernamePassword
-
-from twisted.internet import protocol, reactor, defer
+from twisted.internet import protocol, defer
 from twisted.protocols.basic import LineReceiver
+from twisted.cred.credentials import UsernamePassword
 
-from zope.interface import implements, Interface
-
-from settings import *
 from queries import *
-from amqp import AmqpFactory
-
-
-#############################################################################
-# Implement interface
-class IPortocolAvatar(Interface):
-    def logout(self):
-        """
-        Prototype for custom logout function
-        """
-
-
-class ServerAvatar(object):
-    implements(IPortocolAvatar)
-    __slots__ = ['pk', 'username', 'password']
-
-    def __init__(self, pk, username, password):
-        self.pk = pk
-        self.username = username
-        self.password = password
-
-    def logout(self):
-        pass
-
-
-#############################################################################
-# Credentials checker
-class DBCredentialsChecker(object):
-    implements(ICredentialsChecker)
-
-    def __init__(self):
-        self.credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword,)
-
-    @defer.inlineCallbacks
-    def requestAvatarId(self, credentials):
-        for interface in self.credentialInterfaces:
-            if interface.providedBy(credentials):
-                break
-        else:
-            raise error.UnhandledCredentials()
-
-        try:
-            result = yield getUser(credentials.username)
-        except:
-            msg = "Database Error"
-            raise error.UnhandledCredentials(msg)
-
-        result = list(result)
-        if not len(result):
-            raise error.UnauthorizedLogin("Username not found.")
-        else:
-            password = result[0].password
-            if IUsernameHashedPassword.providedBy(credentials):
-                if credentials.checkPassword(password):
-                    defer.returnValue(result[0])
-                else:
-                    raise error.UnauthorizedLogin("Password mismatch.")
-
-            elif IUsernamePassword.providedBy(credentials):
-                if password == credentials.password:
-                    defer.returnValue(result[0])
-                else:
-                    raise error.UnauthorizedLogin("Password mismatch.")
-
-            else:
-                raise error.UnhandledCredentials()
-
-
-#############################################################################
-# Realm
-class ServerRealm(object):
-    implements(IRealm)
-
-    def requestAvatar(self, avatarId, mind, *interfaces):
-        if IPortocolAvatar in interfaces:
-            avatar = ServerAvatar(avatarId.id, avatarId.username, avatarId.password)
-            logout = avatar.logout
-
-            return IPortocolAvatar, avatar, logout
-
-        raise NotImplementedError("no interface")
+from credentials import IPortocolAvatar
 
 
 #############################################################################
@@ -119,7 +30,7 @@ class NotifyProtocol(LineReceiver):
         if not self.avatar is None:
             name = self.avatar.username
             if name in self.factory.users:
-                args = (self.avatar.pk, self.transport.getPeer().host, APP_DISCONECTED, None)
+                args = (self.avatar.pk, self.transport.getPeer().host, settings.APP_DISCONECTED, None)
                 try:
                     result = yield update_or_create_status(*args)
 
@@ -203,8 +114,8 @@ class NotifyProtocol(LineReceiver):
     def sendStatusNotification(self, result, list_users):
         instance = result.first()
         if not instance is None:
-            if instance.status == APP_USER_LOGINED:
-                instance.status = APP_CONNECTED
+            if instance.status == settings.APP_USER_LOGINED:
+                instance.status = settings.APP_CONNECTED
                 instance.users = list_users
                 self.sendBroadcastMessage(self.avatar.username, instance)
 
@@ -242,39 +153,10 @@ class NotifyFactory(protocol.ServerFactory):
     protocol = NotifyProtocol
     __slots__ = ['users']
 
-    def __init__(self):
+    def __init__(self, service):
         self.users = {}
+        self.service = service
 
     def buildProtocol(self, addr):
         proto = self.protocol(self)
         return proto
-
-
-def main():
-    # Logging
-    file = open(os.path.join(LOG_PATH, 'server.log'), 'w')
-    twisted_log.startLogging(file)
-
-    # Class for authenticate
-    checker = DBCredentialsChecker()
-
-    # Set Portal and Realm
-    realm = ServerRealm()
-    server_portal = Portal(realm)
-    server_portal.registerChecker(checker)
-
-    # Init AMQP Factory
-    amqp_factory = AmqpFactory(**AMQP_CONFIG['rabbitmq'])
-
-    # Init Notify Factory
-    notify_factory = NotifyFactory()
-    notify_factory.portal = server_portal
-    notify_factory.amqp = amqp_factory
-
-    # Run
-    reactor.listenTCP(8000, notify_factory)
-    reactor.run()
-
-
-if __name__ == '__main__':
-    main()

@@ -4,6 +4,9 @@ from sqlalchemy import Column, Integer, String, PickleType, ForeignKey
 from db import Base
 
 
+__all__ = ['StatesModel']
+
+
 #############################################################################
 # Models for States
 class StatesModel(Base):
